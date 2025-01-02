@@ -65,7 +65,7 @@ func buildRenderTree(root *ModNode, renderRoot *tree.Tree) {
 	}
 }
 
-func buildDepTree(mf *modfile.File, depPairs map[string][]string) *ModNode {
+func buildDepTree(mf *modfile.File, modDepEntries map[string][]string) *ModNode {
 	var root = &ModNode{
 		ID:      mf.Module.Mod.String(),
 		Require: make([]*ModNode, 0),
@@ -82,16 +82,16 @@ func buildDepTree(mf *modfile.File, depPairs map[string][]string) *ModNode {
 		}
 		root.Require = append(root.Require, n)
 
-		appendDepChildren(n, depPairs)
+		appendDepChildren(n, modDepEntries)
 	}
 	return root
 }
 
-func appendDepChildren(parent *ModNode, depPairs map[string][]string) {
+func appendDepChildren(parent *ModNode, modDepEntries map[string][]string) {
 	if parent == nil {
 		return
 	}
-	vs, ok := depPairs[parent.ID]
+	vs, ok := modDepEntries[parent.ID]
 	if !ok {
 		return
 	}
@@ -102,7 +102,7 @@ func appendDepChildren(parent *ModNode, depPairs map[string][]string) {
 			Require: make([]*ModNode, 0),
 		}
 		parent.Require = append(parent.Require, child)
-		appendDepChildren(child, depPairs)
+		appendDepChildren(child, modDepEntries)
 	}
 }
 
