@@ -28,5 +28,4 @@ Navigate to your Go project's root directory and run:
 ```
 modep
 ```
-This will generate a file named `dependency_tree.html` in the current directory. Open this file in a web browser to view
-your module's dependency graph.
+This will print the module dependencies in tree hierachy.
