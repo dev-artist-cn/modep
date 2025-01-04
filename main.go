@@ -26,19 +26,19 @@ func main() {
 	}
 
 	// 通过执行 go mod graph 命令获取模块依赖关系, 返回一个map，key为模块名，value为依赖的模块名列表
-	modDepEntries, err := parseModGraph()
+	modDepEntries, err := extractModuleDependencies()
 	if err != nil {
 		log.Printf("构建模块依赖关系失败: %v\n", err)
 		os.Exit(1)
 	}
 
 	// 构建模块依赖树, 以当前模块的直接依赖为起点
-	depTree := buildDepTree(mf, modDepEntries)
+	depTree := buildDependencyTree(mf, modDepEntries)
 	if len(depTree.Require) == 0 {
 		log.Println("未找到模块的直接依赖, 请查看是否 go.mod 中是否有直接依赖项并执行 go mod tidy")
 		os.Exit(1)
 	}
-	printTree(depTree)
+	printDependencyTree(depTree)
 }
 
 type ModNode struct {
@@ -46,7 +46,7 @@ type ModNode struct {
 	Require []*ModNode `json:"require,omitempty"`
 }
 
-func printTree(root *ModNode) {
+func printDependencyTree(root *ModNode) {
 	renderRoot := tree.Root(root.ID)
 	buildRenderTree(root, renderRoot)
 	fmt.Println(renderRoot.String())
@@ -65,7 +65,7 @@ func buildRenderTree(root *ModNode, renderRoot *tree.Tree) {
 	}
 }
 
-func buildDepTree(mf *modfile.File, modDepEntries map[string][]string) *ModNode {
+func buildDependencyTree(mf *modfile.File, modDepEntries map[string][]string) *ModNode {
 	var root = &ModNode{
 		ID:      mf.Module.Mod.String(),
 		Require: make([]*ModNode, 0),
@@ -82,12 +82,12 @@ func buildDepTree(mf *modfile.File, modDepEntries map[string][]string) *ModNode 
 		}
 		root.Require = append(root.Require, n)
 
-		appendDepChildren(n, modDepEntries)
+		addDependencyChildren(n, modDepEntries)
 	}
 	return root
 }
 
-func appendDepChildren(parent *ModNode, modDepEntries map[string][]string) {
+func addDependencyChildren(parent *ModNode, modDepEntries map[string][]string) {
 	if parent == nil {
 		return
 	}
@@ -102,11 +102,11 @@ func appendDepChildren(parent *ModNode, modDepEntries map[string][]string) {
 			Require: make([]*ModNode, 0),
 		}
 		parent.Require = append(parent.Require, child)
-		appendDepChildren(child, modDepEntries)
+		addDependencyChildren(child, modDepEntries)
 	}
 }
 
-func parseModGraph() (map[string][]string, error) {
+func extractModuleDependencies() (map[string][]string, error) {
 	cmd := exec.Command("go", "mod", "graph")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
