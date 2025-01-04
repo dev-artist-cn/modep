@@ -1,17 +1,21 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
-	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss/tree"
 	"golang.org/x/mod/modfile"
 )
 
 func main() {
+	// Define a flag for the -p argument
+	printTree := flag.Bool("p", false, "Print the dependency tree")
+	flag.Parse()
+
 	// 解析go.mod文件
 	modFilePath := "go.mod" // 这里假设go.mod在当前目录，可按需修改路径
 	modFileContent, err := os.ReadFile(modFilePath)
@@ -38,97 +42,17 @@ func main() {
 		log.Println("未找到模块的直接依赖, 请查看是否 go.mod 中是否有直接依赖项并执行 go mod tidy")
 		os.Exit(1)
 	}
-	printDependencyTree(depTree)
-}
 
-type ModNode struct {
-	ID      string     `json:"id"` // Mod Path@Version
-	Require []*ModNode `json:"require,omitempty"`
-}
-
-func printDependencyTree(root *ModNode) {
-	renderRoot := tree.Root(root.ID)
-	buildRenderTree(root, renderRoot)
-	fmt.Println(renderRoot.String())
-}
-
-func buildRenderTree(root *ModNode, renderRoot *tree.Tree) {
-	for _, req := range root.Require {
-		if len(req.Require) == 0 {
-			renderRoot.Child(req.ID)
-			continue
-		}
-
-		ch := tree.Root(req.ID)
-		renderRoot.Child(ch)
-		buildRenderTree(req, ch)
-	}
-}
-
-func buildDependencyTree(mf *modfile.File, modDepEntries map[string][]string) *ModNode {
-	var root = &ModNode{
-		ID:      mf.Module.Mod.String(),
-		Require: make([]*ModNode, 0),
-	}
-
-	for _, req := range mf.Require {
-		if req.Indirect {
-			continue
-		}
-
-		var n = &ModNode{
-			ID:      req.Mod.String(),
-			Require: make([]*ModNode, 0),
-		}
-		root.Require = append(root.Require, n)
-
-		addDependencyChildren(n, modDepEntries)
-	}
-	return root
-}
-
-func addDependencyChildren(parent *ModNode, modDepEntries map[string][]string) {
-	if parent == nil {
-		return
-	}
-	vs, ok := modDepEntries[parent.ID]
-	if !ok {
+	if *printTree {
+		renderRoot := tree.Root(depTree.ID)
+		buildRenderTree(depTree, renderRoot)
+		fmt.Println(renderRoot.String())
 		return
 	}
 
-	for _, v := range vs {
-		child := &ModNode{
-			ID:      v,
-			Require: make([]*ModNode, 0),
-		}
-		parent.Require = append(parent.Require, child)
-		addDependencyChildren(child, modDepEntries)
+	p := tea.NewProgram(initialTreeModel(depTree))
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
 	}
-}
-
-func extractModuleDependencies() (map[string][]string, error) {
-	cmd := exec.Command("go", "mod", "graph")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("执行命令失败 go mod graph: %v", err)
-	}
-
-	modDepEntries := make(map[string][]string)
-	// parse the graph output
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, " ")
-		if len(parts) < 2 {
-			return nil, fmt.Errorf("invalid line: %s", line)
-		}
-		k, v := parts[0], parts[1]
-		if _, ok := modDepEntries[k]; !ok {
-			modDepEntries[k] = make([]string, 0)
-		}
-		modDepEntries[k] = append(modDepEntries[k], v)
-	}
-	return modDepEntries, nil
 }
